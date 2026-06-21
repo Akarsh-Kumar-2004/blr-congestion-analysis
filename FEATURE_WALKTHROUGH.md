@@ -233,6 +233,66 @@
 
 ---
 
+## Screen 6: 📈 Feedback & Retraining (NEW)
+
+### Subtitle
+> "Live accuracy tracking and drift detection. Every resolved incident teaches the model to improve. Retrain when drift crosses threshold."
+
+### What Happens
+1. **Accuracy Report Card**:
+   - **Incidents Resolved**: `686` (running count of logged outcomes)
+   - **Median Absolute Error**: `28.4 min` (typical prediction error)
+   - **Baseline MAE**: `49.8 min` (from original training evaluation)
+   - **Drift Status**: 🟢 GREEN if current ≤ baseline × 1.20; 🔴 RED if exceeded
+
+2. **Live Drift Detection Banner**:
+   - 🟢 **OK**: "Model performing within baseline tolerance"
+   - 🔴 **DRIFTED**: "Accuracy degraded by 22%. Retraining recommended."
+   - (Threshold: drift_flag = median_mae > 49.8 × 1.20 = 59.8 min)
+
+3. **Accuracy Trend Chart** (Plotly line graph):
+   - X-axis: Time (snapshot dates)
+   - Y-axis: Median Absolute Error (minutes)
+   - Blue line: Actual accuracy trend
+   - Green dashed: Baseline (49.8 min)
+   - Red dashed: Retrain threshold (59.8 min)
+   - Hover to see exact metrics for each snapshot
+   - Shows if model is improving, stable, or degrading
+
+4. **Prediction Log Table** (100 most recent):
+   - Columns:
+     - `event_id` — UUID of this incident
+     - `created_at` — When prediction was made
+     - `event_cause` — vehicle_breakdown, accident, construction, etc.
+     - `priority` — Low/Medium/High
+     - `pred_p50` — Predicted clearance (minutes)
+     - `actual_minutes` — Officer-logged actual time (or "pending")
+     - `abs_error` — |pred - actual| (or "—" if pending)
+   - Rows sorted by most recent first
+   - Expandable: Click row to see full event details
+
+5. **Manual Retrain Trigger** (Bottom section):
+   - ⚙️ Retraining Command:
+     ```
+     python train_model.py --csv augmented_data.csv --output model_p50_v2.pkl model_p90_v2.pkl
+     ```
+   - 📝 Instructions:
+     ```
+     1. Export 686 resolved incidents to CSV
+     2. Append to original training data
+     3. Run command above
+     4. Replace model_p50.pkl and model_p90.pkl
+     5. Restart app: streamlit run app.py
+     ```
+   - ⚠️ Note: Retraining requires supervisor approval (not automatic for safety)
+
+6. **📊 Snapshot History** (Optional expandable):
+   - Shows all past snapshots: date, n_resolved, median_mae, pct_correct_impact
+   - Lets you see accuracy trajectory over weeks/months
+   - Useful for analyzing seasonal patterns or spotting sudden drift
+
+---
+
 ## 🎯 Why Each Screen Matters for Judges
 
 | Screen | Judge Question | Answer |
@@ -242,6 +302,7 @@
 | **Hotspots** | "Is the data real?" | ✅ 8,173 actual incidents, real patterns |
 | **Live Map** | "How do you learn?" | ✅ Pred vs actual feedback loop visible |
 | **Scenario** | "Why are you different?" | ✅ Decision support, not just accuracy |
+| **Feedback** | "Is this production-ready?" | ✅ Fully operational feedback loop + drift detection |
 
 ---
 

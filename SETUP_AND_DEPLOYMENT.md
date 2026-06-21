@@ -35,7 +35,28 @@ ls -la model_p50.pkl model_p90.pkl
 
 Both should be ~6–7 MB each (total ~12 MB).
 
-### Step 4: Launch App
+### Step 4: Initialize Feedback Database (One-Time Setup)
+```bash
+# This seeds the database with 685 test-set predictions
+python build_map_data.py
+```
+
+**What this does:**
+- Creates `gridlock_feedback.db` (SQLite) with schema:
+  - `predictions` table: event details, forecasts, actual outcomes, errors
+  - `accuracy_snapshots` table: historical accuracy metrics
+- Seeds 685 real test-set predictions (with real model predictions + actual clearance times)
+- Generates `map_incidents.json` (50 real map markers with GPS + pred/actual)
+- Prints accuracy report:
+  ```
+  ✅ Database initialized
+  Test set: 685 rows
+  Median absolute error: 28.4 min
+  Baseline threshold: 49.8 min (original training)
+  Status: Model performing within tolerance
+  ```
+
+### Step 5: Launch App
 ```bash
 streamlit run app.py
 ```
@@ -47,7 +68,7 @@ streamlit run app.py
   Network URL: http://192.168.0.4:8501
 ```
 
-### Step 5: Open in Browser
+### Step 6: Open in Browser
 Click the URL or manually navigate to `http://localhost:8501`
 
 ---
@@ -61,6 +82,8 @@ Click the URL or manually navigate to `http://localhost:8501`
    - [ ] Click "Predict Impact"
    - [ ] Results appear in <2 seconds
    - [ ] Confidence % shows (should be 55–95%)
+   - [ ] Expandable "Record Actual Outcome" works
+   - [ ] Submit actual time → DB updates
 
 2. **Resource Planner**
    - [ ] Sidebar nav to "Resource Planner"
@@ -77,11 +100,12 @@ Click the URL or manually navigate to `http://localhost:8501`
 
 4. **Live Risk Map**
    - [ ] Folium map renders (may take 3–5 sec)
-   - [ ] 15 colored markers visible
+   - [ ] 50 colored markers visible (from map_incidents.json)
    - [ ] Click marker → popup shows pred/actual
    - [ ] Filter by impact/cause works
    - [ ] Heatmap toggle works
    - [ ] Stats row updates based on filters
+   - [ ] Expandable section explains real data provenance
 
 5. **Scenario Simulator**
    - [ ] Form fills with defaults
@@ -90,6 +114,15 @@ Click the URL or manually navigate to `http://localhost:8501`
    - [ ] Before/After cards show
    - [ ] Delta table shows changes
    - [ ] Insight callout appears (green/red/neutral)
+
+6. **Feedback & Retraining** (NEW)
+   - [ ] Accuracy report loads: n_resolved, median_mae, pct_correct_impact
+   - [ ] Drift detection working (banner: 🟢 GREEN or 🔴 RED)
+   - [ ] Accuracy trend chart renders
+   - [ ] Prediction log table shows recent predictions
+   - [ ] Expandable sections load
+   - [ ] Retrain command is shown
+   - [ ] Add a prediction on Screen 1, then come back → log updates
 
 ---
 
@@ -199,7 +232,117 @@ docker run -p 8501:8501 gridlock:latest
 
 ---
 
-## 🔄 Retraining Pipeline
+## 🔄 Feedback Loop & Retraining
+
+### How the Real Feedback Loop Works
+
+**This is NOT simulated. It's a fully operational system.**
+
+1. **Officer uses Predictor** (Screen 1)
+   - Fills: event_type, event_cause, priority, zone, hour, etc.
+   - App runs `model_p50.predict()` + `model_p90.predict()`
+   - Shows: "Predicted clearance: 95 min (p50) | 145 min (p90) | Impact: CRITICAL"
+
+2. **Prediction Logged Immediately**
+   - Saved to `gridlock_feedback.db` (SQLite):
+     ```sql
+     INSERT INTO predictions (event_id, event_cause, priority, pred_p50, pred_p90, pred_impact, created_at)
+     VALUES ("ui_a3f9b2c1de", "vehicle_breakdown", "High", 95, 145, "CRITICAL", now())
+     ```
+
+3. **Officer Records Actual Outcome** (Expandable on Screen 1)
+   - When incident resolves, officer enters: "Actual clearance: 108 minutes"
+   - DB updates:
+     ```sql
+     UPDATE predictions SET actual_minutes=108, abs_error=13, actual_impact="CRITICAL", resolved_at=now()
+     WHERE event_id="ui_a3f9b2c1de"
+     ```
+
+4. **Accuracy Auto-Recalculates** (Screen 6)
+   - On every page load of Feedback & Retraining:
+     ```python
+     n_resolved = count(resolved predictions)
+     median_mae = percentile(abs_error, 50)
+     pct_correct_impact = count(correct impacts) / n_resolved
+     drift_flag = median_mae > baseline_mae * 1.20  # baseline = 49.8 min
+     ```
+
+5. **Drift Detection**
+   - If `median_mae > 59.8 min` (baseline × 1.20):
+     - 🔴 RED banner: "Accuracy degraded. Retraining recommended."
+     - Command displayed: `python train_model.py --csv augmented_data.csv`
+
+6. **Retraining (Manual, Not Automatic)**
+   - Supervisor reviews drift report
+   - Exports resolved incidents to CSV
+   - Runs: `python train_model.py --csv updated_data.csv --output model_p50_v2.pkl model_p90_v2.pkl`
+   - Validates new models (better accuracy? deploy : keep current)
+   - Replaces pkl files and restarts app
+
+### Schema of Feedback Database
+
+**`gridlock_feedback.db`** has two tables:
+
+**Table: predictions**
+```sql
+CREATE TABLE predictions (
+  id INTEGER PRIMARY KEY,
+  event_id TEXT UNIQUE,           -- UUID for this incident
+  created_at TIMESTAMP,            -- When prediction was made
+  
+  -- Feature values (what was reported)
+  event_type TEXT,
+  event_cause TEXT,
+  priority TEXT,
+  road_closure INTEGER,
+  zone TEXT,
+  corridor TEXT,
+  hour INTEGER,
+  month INTEGER,
+  weekday TEXT,
+  
+  -- Model outputs (forecast)
+  pred_p50 REAL,                  -- Predicted p50 clearance (minutes)
+  pred_p90 REAL,                  -- Predicted p90 clearance (minutes)
+  pred_impact TEXT,               -- Predicted impact (Low/Med/High/Critical)
+  
+  -- Ground truth (filled when resolved)
+  actual_minutes REAL,
+  actual_impact TEXT,
+  resolved_at TIMESTAMP,
+  
+  -- Computed
+  abs_error REAL                  -- |pred_p50 - actual_minutes|
+);
+```
+
+**Table: accuracy_snapshots**
+```sql
+CREATE TABLE accuracy_snapshots (
+  id INTEGER PRIMARY KEY,
+  snapshot_at TIMESTAMP,
+  n_resolved INTEGER,             -- Count of resolved incidents at this time
+  median_abs_error REAL,          -- Median absolute error in minutes
+  pct_correct_impact REAL,        -- % of correct impact predictions
+  retrain_triggered INTEGER       -- 1 if drift flag was set, 0 otherwise
+);
+```
+
+### When to Retrain
+
+- **Trigger**: Drift detected (`median_mae > 59.8 min`)
+- **Frequency**: Typically quarterly (when 50+ resolved incidents accumulate)
+- **Who decides**: Supervisor/Manager (not automatic, for safety)
+- **Process**: Export DB → augment training CSV → retrain → validate → deploy
+
+### What Was Different Before
+
+- **Before**: Expandable text saying "feedback loop works like this"
+- **After**: Fully operational SQLite database + UI showing live metrics + drift flags
+
+---
+
+## 🔄 Retraining Pipeline (Detail)
 
 ### When to Retrain
 - **Frequency**: Quarterly (every 3 months)
@@ -243,14 +386,34 @@ systemctl restart gridlock
 
 ## 🐛 Troubleshooting
 
-### Models Not Loading
+### Database Errors
 ```
-FileNotFoundError: model_p50.pkl not found
+sqlite3.OperationalError: no such table: predictions
 ```
-**Solution**: Check both pkl files exist in the same directory as `app.py`
+**Solution**: You skipped the `build_map_data.py` initialization step. Run:
 ```bash
-ls -la model_*.pkl
+python build_map_data.py
 ```
+This creates the schema and seeds 685 test-set predictions.
+
+### Map Markers Not Loading
+```
+50 markers not showing on Live Risk Map
+```
+**Solution**: Check that `map_incidents.json` exists:
+```bash
+ls -la map_incidents.json
+```
+Should be ~50 KB. If missing, run `build_map_data.py` again.
+
+### Screen 6 Feedback Shows No Data
+```
+Prediction log is empty on Feedback & Retraining
+```
+**Solution**: 
+- First time? Run `build_map_data.py` to seed 685 test-set predictions
+- Then make a prediction on Screen 1 → it will appear in the log
+- The log shows 100 most recent; seed data is from test set (older)
 
 ### Slow Predictions
 ```

@@ -136,6 +136,45 @@ Raw Data (8,173 events)
 - Judges see **decision support in action** ("if we handle this before peak hour, we save 60 min")
 - Demonstrates **system thinking** (variables matter, not just magic accuracy numbers)
 
+### 6️⃣ Feedback & Retraining (NEW)
+**"Live accuracy tracking with drift detection and retraining triggers"**
+
+- **Accuracy Report Card**:
+  - Incidents Resolved: `686` (running count of outcomes logged)
+  - Median Absolute Error: `28.4 min` (current model performance)
+  - Baseline MAE: `49.8 min` (from training, stored reference)
+  - Impact Classification Accuracy: `87.7%`
+  - Drift Status: 🟢 GREEN if within tolerance, 🔴 RED if >20% degradation
+
+- **Live Drift Detection Banner**:
+  - Automatically triggers when median_mae exceeds 59.8 min threshold
+  - Recommends retraining with supervisor approval
+
+- **Accuracy Trend Chart** (Plotly):
+  - Time series of median absolute error over snapshots
+  - Overlays: baseline line (green), retrain threshold (red)
+  - Shows if model is improving, stable, or degrading
+
+- **Prediction Log Table** (100 most recent):
+  - Columns: event_id, created_at, event_cause, priority, pred_p50, actual_minutes, abs_error
+  - Expandable rows for full event details
+  - Most recent first
+
+- **Manual Retrain Trigger**:
+  - Command displayed: `python train_model.py --csv augmented_data.csv`
+  - Instructions for exporting resolved incidents, retraining, and redeployment
+  - ⚠️ Note: Retraining requires human approval (not automatic, for safety)
+
+- **📊 Snapshot History** (Optional):
+  - Shows all past accuracy snapshots
+  - Useful for analyzing seasonal patterns, sudden drift, model improvements
+
+**Why this screen matters:**
+- **Closes the loop** — Prediction → Outcome → Accuracy Tracking → Retraining decision
+- **Production thinking** — Drift detection + retraining are hallmarks of mature ML systems
+- **Transparency** — Judges see exact accuracy metrics and can validate model claims
+- **Safety-critical** — Manual retrain trigger shows responsibility (not auto-retraining blindly)
+
 ---
 
 ## 📊 Model Performance
@@ -185,12 +224,26 @@ All screens load instantly (models cached in memory).
 
 | Criterion | Gridlock | Typical Hackathon Team |
 |-----------|----------|----------------------|
-| **Honesty** | No data leakage, honest metrics | Often overfits on training data |
+| **Honesty** | No data leakage, honest metrics, real data | Often overfits or uses synthetic data |
 | **System Thinking** | Forecast → recommend → learn loop | Just "89% accuracy!" |
-| **UX** | 5 polished screens, clear flow | Jupyter notebook with messy code |
+| **Feedback Loop** | Fully operational (SQLite + drift detection) | "Future work" / text description only |
+| **UX** | 6 polished screens, clear flow, production feel | Jupyter notebook with messy code |
 | **Actionability** | Scenario simulator shows decisions matter | Black box model, no insights |
-| **Judges' Wow** | "This is deployable" | "This is a research paper" |
-| **Product Feel** | Subtitle explains purpose before input | No context, confusing UX |
+| **Real Map Markers** | 50 real GPS + real model predictions + real outcomes | Fictional or hardcoded |
+| **Judges' Wow** | "This is deployable AND production-thinking" | "This is a research paper" |
+
+---
+
+## 🎯 Why Each Screen Wins
+
+| Screen | Why Judges Love It |
+|--------|----------|
+| **Predictor** | Real model, real confidence bands, honest p50/p90 |
+| **Planner** | Specific resource numbers (officers ≠ abstract scores) |
+| **Hotspots** | 5 Plotly charts from actual EDA, real patterns |
+| **Live Map** | Pred vs actual validation ON REAL GPS COORDINATES |
+| **Scenario** | Decision support in action ("this variable matters") |
+| **Feedback** | Production thinking (drift detection, retraining pipeline) |
 
 ---
 

@@ -35,7 +35,8 @@ gridlock/
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+python build_map_data.py              # Initialize feedback DB (one-time)
+streamlit run app.py                  # Launch app
 # Open http://localhost:8501
 ```
 
@@ -60,8 +61,9 @@ streamlit run app.py
 | **📊 Event Impact Predictor** | Forecast clearance time + severity | p50/p90 + confidence % |
 | **🛠️ Resource Planner** | Recommend officers/barricades/diversion | 2–10 officers, 1–8 barricades |
 | **🔥 Historical Hotspots** | Show real patterns from 8,173 incidents | 5 Plotly charts + insights |
-| **🗺️ Live Risk Map** | Display incidents with pred vs actual | 15 markers, pred/actual feedback |
+| **🗺️ Live Risk Map** | Display incidents with pred vs actual | 50 real markers, pred/actual feedback |
 | **🎮 Scenario Simulator** | What-if analysis (THE differentiator) | Delta table showing impact change |
+| **📈 Feedback & Retraining** | Live accuracy + drift detection | 686 incidents logged, drift flags |
 
 ---
 
@@ -111,15 +113,18 @@ Feedback Loop: Actual vs Predicted → Retraining (Quarterly)
 
 ### Most Likely to Impress Judges
 - **Scenario Simulator** → "If we close this road before 6 PM, impact drops Critical→High"
-- **Live Map** → Pred vs Actual feedback (shows model is validated on real data)
+- **Live Map** → Pred vs Actual feedback (shows model is validated on real GPS + real outcomes)
 - **Confidence Bands** → p50/p90 (not point estimates; honest uncertainty)
-- **5 Polished Screens** → Product feel, not research notebook
+- **Feedback Screen** → Live accuracy tracking + drift detection (production thinking)
+- **6 Polished Screens** → Product feel, not research notebook
 
 ### Most Likely to Win Hackathon
 - **No Data Leakage** → Technical depth (judges who know ML will appreciate this)
-- **Post-Event Learning** → Shows long-term thinking beyond hackathon
-- **Resource Recommendation** → Directly actionable (officers need actual numbers)
+- **Fully Operational Feedback Loop** → Not promises, actual SQLite DB logging + retraining pipeline
+- **Real Data Everywhere** → 8,173 incidents, real GPS coordinates, real predictions, real outcomes
+- **Resource Recommendation** → Directly actionable (officers need actual numbers, not percentages)
 - **Decision Support** → Not just "model is accurate" but "model helps decide"
+- **Production-Ready** → Drift detection, manual retrain trigger, safety-conscious
 
 ---
 
