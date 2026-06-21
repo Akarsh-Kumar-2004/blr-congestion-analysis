@@ -1,7 +1,7 @@
 # Gridlock
 
 Traffic event forecasting + resource planning for Bengaluru.
-
+deployed link- https://akarsh-kumar-2004-blr-congestion-analysis-app-m9agvi.streamlit.app/
 ## Run
 
 ```bash
@@ -57,10 +57,3 @@ No synthetic data anywhere.
 
 Run `python build_map_data.py` once to initialize the database and generate map data.
 
-## How it's different
-
-- Real feedback loop (not just text about it)
-- Real data (8,173 actual incidents)
-- Drift detection that actually works
-- Scenario simulator (shows the model is actionable)
-- No misleading accuracy percentages
