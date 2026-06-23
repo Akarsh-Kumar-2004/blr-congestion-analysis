@@ -73,51 +73,6 @@ CAT_COLS     = ["event_type","event_cause","priority","requires_road_closure",
 import feedback_store as fs
 fs.init_db()
 
-# ── Auto-seed DB from map_incidents.json if DB is empty ──────────────────────
-# This runs on first startup (e.g. Streamlit Cloud) where no DB file exists yet.
-# It seeds the 685 test-set predictions so Screen 6 is meaningful from the start.
-@st.cache_resource(show_spinner=False)
-def seed_db_if_empty():
-    import sqlite3 as _sq
-    conn = _sq.connect(fs.DB_PATH)
-    count = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
-    conn.close()
-    if count > 0:
-        return  # already seeded, nothing to do
-
-    map_path = os.path.join(BASE, "map_incidents.json")
-    if not os.path.exists(map_path):
-        return  # no source data, skip
-
-    with open(map_path) as f:
-        incidents = json.load(f)
-
-    seeded = 0
-    for inc in incidents:
-        if inc.get("status") != "resolved" or inc.get("actual_minutes") is None:
-            continue
-        # deterministic ID so re-seeding never creates duplicates
-        event_id = f"seed_{abs(hash((inc['lat'], inc['lon'], inc['pred_p50']))) % (10**8):08x}"
-        event = {
-            "event_type":            "unplanned",
-            "event_cause":           inc.get("cause", "others"),
-            "priority":              inc.get("priority", "High"),
-            "requires_road_closure": inc.get("road_closure", False),
-            "zone":                  inc.get("zone", "Unknown"),
-            "corridor":              inc.get("corridor", "Non-corridor"),
-            "hour":                  inc.get("hour", 12),
-            "month":                 inc.get("month", 6),
-            "weekday":               inc.get("weekday", "Monday"),
-        }
-        fs.log_prediction(event_id, event, inc["pred_p50"], inc["pred_p90"], inc["impact"])
-        fs.record_actual(event_id, float(inc["actual_minutes"]))
-        seeded += 1
-
-    if seeded:
-        fs.take_accuracy_snapshot()
-
-seed_db_if_empty()
-
 # ── Load real map incidents (generated from actual test set) ──────────────────
 @st.cache_data(show_spinner=False)
 def load_map_incidents():
