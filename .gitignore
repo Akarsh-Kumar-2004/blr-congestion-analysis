@@ -1,0 +1,25 @@
+# Database — never commit, it will overwrite real predictions on pull
+gridlock_feedback.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Env
+.env
+.venv
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Debug/temp scripts
+check_db.py
+debug_paths.py

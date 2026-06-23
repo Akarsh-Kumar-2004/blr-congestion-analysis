@@ -150,29 +150,43 @@ sys.path.insert(0, BASE)
 import feedback_store as fs
 fs.init_db()
 
-all_resolved = [make_inc(r, 'resolved') for _, r in test_rows.iterrows()
-                if r['pred_impact'] is not None]
+# Check how many seed rows already exist — don't re-seed if already done.
+import sqlite3 as _sqlite3
+_conn = _sqlite3.connect(fs.DB_PATH)
+existing_seed_count = _conn.execute(
+    "SELECT COUNT(*) FROM predictions WHERE event_id LIKE 'seed_%'"
+).fetchone()[0]
+_conn.close()
 
-import uuid, datetime as dt
-seeded = 0
-for inc in all_resolved:
-    event_id = f"seed_{uuid.uuid4().hex[:8]}"
-    event = {
-        'event_type':           'unplanned',
-        'event_cause':          inc['cause'],
-        'priority':             inc['priority'],
-        'requires_road_closure':inc['road_closure'],
-        'zone':                 inc['zone'],
-        'corridor':             inc['corridor'],
-        'hour':                 inc['hour'],
-        'month':                inc['month'],
-        'weekday':              inc['weekday'],
-    }
-    fs.log_prediction(event_id, event, inc['pred_p50'], inc['pred_p90'], inc['impact'])
-    fs.record_actual(event_id, inc['actual_minutes'])
-    seeded += 1
+if existing_seed_count > 0:
+    print(f"DB already has {existing_seed_count} seed rows — skipping re-seed to preserve existing predictions.")
+    print("(Delete gridlock_feedback.db and re-run this script if you want a fresh seed.)")
+else:
+    all_resolved = [make_inc(r, 'resolved') for _, r in test_rows.iterrows()
+                    if r['pred_impact'] is not None]
 
-print(f"Seeded {seeded} records into feedback DB")
+    import uuid
+    seeded = 0
+    for inc in all_resolved:
+        # Use a deterministic event_id based on row index so re-runs don't duplicate
+        row_idx = inc.get('_row_idx', seeded)
+        event_id = f"seed_{abs(hash((inc['lat'], inc['lon'], inc['pred_p50']))) % (10**8):08x}"
+        event = {
+            'event_type':           'unplanned',
+            'event_cause':          inc['cause'],
+            'priority':             inc['priority'],
+            'requires_road_closure':inc['road_closure'],
+            'zone':                 inc['zone'],
+            'corridor':             inc['corridor'],
+            'hour':                 inc['hour'],
+            'month':                inc['month'],
+            'weekday':              inc['weekday'],
+        }
+        fs.log_prediction(event_id, event, inc['pred_p50'], inc['pred_p90'], inc['impact'])
+        fs.record_actual(event_id, inc['actual_minutes'])
+        seeded += 1
+
+    print(f"Seeded {seeded} records into feedback DB")
 report = fs.accuracy_report()
 print("\nInitial accuracy report:")
 for k, v in report.items():
